@@ -31,13 +31,14 @@ case "$1" in
 	"exec")
 		cmd=(docker exec)
 		shift
-		while [[ $# -gt 0 ]]; do
+		while [[ $# -gt 0 && $1 =~ ^- ]]; do
 			cmd=("${cmd[@]}" "$1")
 			if [[ "$1" =~ ^-[^-]*t.*$ || "$1" == "--tty" ]]; then
 				sshopt="$sshopt -t"
 			fi
 			shift
 		done
+		cmd=("${cmd[@]}" "$@")
 		;;
 	"export" | "save")
 		cmd=(docker "$1")
@@ -54,9 +55,9 @@ case "$1" in
 	"run")
 		cmd=(docker run)
 		shift
-		while [[ $# -gt 0 ]]; do
+		while [[ $# -gt 0 && $1 =~ ^- ]]; do
 			cmd=("${cmd[@]}" "$1")
-			if [[ "$1" =~ ^-[^-]*t.*$ || "$1" = "--tty" ]]; then
+			if [[ "$1" =~ ^-[^-]*t || "$1" = "--tty" ]]; then
 				sshopt="$sshopt -t"
 			fi
 			if [[ "$1" =~ ^-[^-]*v$ || "$1" = "--volume" ]]; then
@@ -65,6 +66,7 @@ case "$1" in
 			fi
 			shift
 		done
+		cmd=("${cmd[@]}" "$@")
 		;;
 esac
 
