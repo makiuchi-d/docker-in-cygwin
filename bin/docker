@@ -9,7 +9,7 @@ function dmpath ()
 }
 
 cmd=(docker "$@")
-sshopt=""
+sshopt=()
 
 case "$1" in
 	"build" | "import")
@@ -25,7 +25,7 @@ case "$1" in
 				-* | *:*) cmd=("${cmd[@]}" "$1") ;;
 				*) cmd=("${cmd[@]}" "$(dmpath "$1")") ;;
 			esac
-			shift;
+			shift
 		done
 		;;
 	"exec")
@@ -34,7 +34,15 @@ case "$1" in
 		while [[ $# -gt 0 && $1 =~ ^- ]]; do
 			cmd=("${cmd[@]}" "$1")
 			if [[ "$1" =~ ^-[^-]*t.*$ || "$1" == "--tty" ]]; then
-				sshopt="$sshopt -t"
+				sshopt=("${sshopt[@]}" "-t")
+			fi
+			if [[ "$1" =~ ^-[^-]*[eu]$ || \
+				"$1" = "--detach-keys" || \
+				"$1" = "--env" || \
+				"$1" = "--user" ]]
+			then
+				cmd=("${cmd[@]}" "$2")
+				shift
 			fi
 			shift
 		done
@@ -56,13 +64,118 @@ case "$1" in
 		cmd=(docker run)
 		shift
 		while [[ $# -gt 0 && $1 =~ ^- ]]; do
-			cmd=("${cmd[@]}" "$1")
 			if [[ "$1" =~ ^-[^-]*t || "$1" = "--tty" ]]; then
-				sshopt="$sshopt -t"
+				sshopt=("${sshopt[@]}" "-t")
 			fi
-			if [[ "$1" =~ ^-[^-]*v$ || "$1" = "--volume" ]]; then
-				cmd=("${cmd[@]}" "$(dmpath "${2%:*}"):${2#*:}")
+
+			if [[ "${1%=*}" =~ ^-[^-]*v$ || "${1%=*}" = "--volume" ]]; then
+				case "$1" in
+					*=*)
+						p1="${1%=*}"
+						p2="${1#*=}"
+						;;
+					*)
+						p1="$1"
+						p2="$2"
+						shift
+						;;
+				esac
+				cmd=("${cmd[@]}" "$p1" "$(dmpath "${p2%:*}"):${p2#*:}")
+			elif [[ "${1%=*}" = "--cidfile" ||
+					"${1%=*}" = "--env-file" ||
+					"${1%=*}" = "--label-file" ]]; then
+				case "$1" in
+					*=* )
+						p1="${1%=*}"
+						p2="${1#*=}"
+						;;
+					*)
+						p1="$1"
+						p2="$2"
+						shift
+						;;
+				esac
+				cmd=("${cmd[@]}" "$p1" "$(dmpath "$p2")")
+			elif [[ "$1" =~ ^-[^-]*[acehlmpuw]$ ||
+					"$1" = "--add-host" ||
+					"$1" = "--attach" ||
+					"$1" = "--blkio-weight" ||
+					"$1" = "--blkio-weight-device" ||
+					"$1" = "--cap-add" ||
+					"$1" = "--cap-drop" ||
+					"$1" = "--cgroup-parent" ||
+					"$1" = "--cpu-count" ||
+					"$1" = "--cpu-period" ||
+					"$1" = "--cpu-quota" ||
+					"$1" = "--cpu-rt-period" ||
+					"$1" = "--cpu-rt-runtime" ||
+					"$1" = "--cpu-shares" ||
+					"$1" = "--cpus" ||
+					"$1" = "--cpuset-cpus" ||
+					"$1" = "--cpuset-mems" ||
+					"$1" = "--detach-keys" ||
+					"$1" = "--device" ||
+					"$1" = "--device-cgroup-rule" ||
+					"$1" = "--device-read-bps" ||
+					"$1" = "--device-read-iops" ||
+					"$1" = "--device-write-bps" ||
+					"$1" = "--device-write-iops" ||
+					"$1" = "--nds" ||
+					"$1" = "--dns-option" ||
+					"$1" = "--dns-search" ||
+					"$1" = "--entrypoint" ||
+					"$1" = "--env" ||
+					"$1" = "--expose" ||
+					"$1" = "--group-add" ||
+					"$1" = "--health-cmd" ||
+					"$1" = "--health-interval" ||
+					"$1" = "--health-retries" ||
+					"$1" = "--health-start-period" ||
+					"$1" = "--health-timeout" ||
+					"$1" = "--hostname" ||
+					"$1" = "--ip" ||
+					"$1" = "--ip6" ||
+					"$1" = "--ipc" ||
+					"$1" = "--isolation" ||
+					"$1" = "--kernel-memory" ||
+					"$1" = "--label" ||
+					"$1" = "--link" ||
+					"$1" = "--link-local-ip" ||
+					"$1" = "--log-driver" ||
+					"$1" = "--log-opt" ||
+					"$1" = "--mac-address" ||
+					"$1" = "--memory" ||
+					"$1" = "--memory-reservation" ||
+					"$1" = "--memory-swap" ||
+					"$1" = "--memory-swappiness" ||
+					"$1" = "--mount" ||
+					"$1" = "--name" ||
+					"$1" = "--network" ||
+					"$1" = "--network-alias" ||
+					"$1" = "--oom-score-adj" ||
+					"$1" = "--pid" ||
+					"$1" = "--pids-limit" ||
+					"$1" = "--publish" ||
+					"$1" = "--restart" ||
+					"$1" = "--runtime" ||
+					"$1" = "--security-opt" ||
+					"$1" = "--shm-size" ||
+					"$1" = "--stop-signal" ||
+					"$1" = "--stop-timeout" ||
+					"$1" = "--storage-opt" ||
+					"$1" = "--sysctl" ||
+					"$1" = "--tmpfs" ||
+					"$1" = "--ulimit" ||
+					"$1" = "--user" ||
+					"$1" = "--userns" ||
+					"$1" = "--uts" ||
+					"$1" = "--volume-driver" ||
+					"$1" = "--volumes-from" ||
+					"$1" = "--workdir" ]]; then
+				cmd=("${cmd[@]}" "$1" "$2")
 				shift
+			else
+				cmd=("${cmd[@]}" "$1")
 			fi
 			shift
 		done
@@ -72,7 +185,7 @@ esac
 
 
 INSPECT=$(docker-machine inspect)
-SSHKEY=$(echo $INSPECT | grep -Po '"SSHKeyPath":\s*"\K[^"]*(?=",)' | sed -E 's|^(\w+):|/cygdrive/\L\1|;s|\\\\|/|g')
-VMADDR=$(echo $INSPECT | grep -Po '"IPAddress":\s*"\K[^"]*(?=",)')
+SSHKEY=$(echo "$INSPECT" | grep -Po '"SSHKeyPath":\s*"\K[^"]*(?=",)' | sed -E 's|^(\w+):|/cygdrive/\L\1|;s|\\\\|/|g')
+VMADDR=$(echo "$INSPECT" | grep -Po '"IPAddress":\s*"\K[^"]*(?=",)')
 
-ssh $sshopt -q -i $SSHKEY docker@$VMADDR "${cmd[@]}"
+ssh "${sshopt[@]}" -q -i "$SSHKEY" docker@"$VMADDR" "$(printf "%q " "${cmd[@]}")"
